@@ -22,12 +22,12 @@ jobs:
     steps:
       - uses: step-security/s3-actions-cache@v1
         with:
-          endpoint: play.min.io # optional, default s3.amazonaws.com
+          endpoint: ${{ secrets.ENDPOINT }} # optional, default s3.amazonaws.com
           insecure: false # optional, use http instead of https. default false
-          accessKey: "Q3AM3UQ867SPQQA43P2F" # required
-          secretKey: "zuf+tfteSlswRu7BJ86wekitnifILbZam1KYY3TG" # required
-          sessionToken: "AQoDYXdzEJraDcqRtz123" # optional
-          bucket: actions-cache # required
+          accessKey: ${{ secrets.ACCESS_KEY }}  # required
+          secretKey: ${{ secrets.SECRET_KEY }} # required
+          sessionToken: ${{ secrets.SESSION_TOKEN }} # optional
+          bucket: ${{ secrets.BUCKET }}   # required
           use-fallback: true # optional, use github actions cache fallback, default true
 
           # actions/cache compatible properties: https://github.com/actions/cache
@@ -44,13 +44,13 @@ You can also set env instead of using `with`:
 ```yaml
       - uses: step-security/s3-actions-cache@v1
         env:
-          AWS_ACCESS_KEY_ID: "Q3AM3UQ867SPQQA43P2F"
-          AWS_SECRET_ACCESS_KEY: "zuf+tfteSlswRu7BJ86wekitnifILbZam1KYY3TG"
+          AWS_ACCESS_KEY_ID: ${{ secrets.ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SECRET_KEY }}
           # AWS_SESSION_TOKEN: "xxx"
           AWS_REGION: "us-east-1"
         with:
-          endpoint: play.min.io
-          bucket: actions-cache
+          endpoint: ${{ secrets.ENDPOINT }}
+          bucket: ${{ secrets.BUCKET }}
           use-fallback: false
           key: test-${{ runner.os }}-${{ github.run_id }}
           path: |
@@ -63,9 +63,9 @@ To write to the cache only:
 ```yaml
       - uses: step-security/s3-actions-cache/save@v1
         with:
-          accessKey: "Q3AM3UQ867SPQQA43P2F" # required
-          secretKey: "zuf+tfteSlswRu7BJ86wekitnifILbZam1KYY3TG" # required
-          bucket: actions-cache # required
+          accessKey: ${{ secrets.ACCESS_KEY }} # required
+          secretKey: ${{ secrets.SECRET_KEY }} # required
+          bucket: ${{ secrets.BUCKET }} # required
           # actions/cache compatible properties: https://github.com/actions/cache
           key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
           path: |
@@ -77,9 +77,9 @@ To restore from the cache only:
 ```yaml
       - uses: step-security/s3-actions-cache/restore@v1
         with:
-          accessKey: "Q3AM3UQ867SPQQA43P2F" # required
-          secretKey: "zuf+tfteSlswRu7BJ86wekitnifILbZam1KYY3TG" # required
-          bucket: actions-cache # required
+          accessKey: ${{ secrets.ACCESS_KEY }} # required
+          secretKey: ${{ secrets.SECRET_KEY }} # required
+          bucket: ${{ secrets.BUCKET }} # required
           # actions/cache compatible properties: https://github.com/actions/cache
           key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
           path: |
