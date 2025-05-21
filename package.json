@@ -9,7 +9,7 @@
   "dependencies": {
     "@actions/cache": "^4.0.3",
     "@actions/core": "^1.11.1",
-    "@types/node": "^20.5.1",
+    "@types/node": "^22.15.21",
     "minio": "^7.1.1"
   },
   "devDependencies": {
