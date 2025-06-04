@@ -98,7 +98,7 @@ jobs:
           secretKey: ${{ secrets.SECRET_KEY }}
           bucket: ${{ secrets.BUCKET }}
           use-fallback: false
-          key: test-${{ runner.os }}-${{ github.run_id }}-${{ github.sha }}
+          key: test-${{ runner.os }}-${{ github.run_id }}
           path: |
             test-cache
             ~/test-cache
