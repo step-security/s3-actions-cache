@@ -91,11 +91,11 @@ To check if cache hits and size is not zero:
 ```yaml
       - name: Check cache
         id: cache
-        uses: tespkg/actions-cache/check@v1
+        uses: step-security/actions-cache/check@v1
         with:
-          accessKey: "Q3AM3UQ867SPQQA43P2F" # required
-          secretKey: "zuf+tfteSlswRu7BJ86wekitnifILbZam1KYY3TG" # required
-          bucket: actions-cache # required
+          accessKey:  ${{ secrets.ACCESS_KEY }} # required
+          secretKey: ${{ secrets.SECRET_KEY }} # required
+          bucket: ${{ secrets.BUCKET }} # required
           lookup-only: true
           key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
           path: |
