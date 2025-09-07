@@ -12,7 +12,7 @@ describe("utils", () => {
     const got = await findObject(
       mc,
       "actions-cache",
-      "foo.bar",
+      "notion-block-test.md",
       ["test-Linux-"],
       await getCompressionMethod()
     );
