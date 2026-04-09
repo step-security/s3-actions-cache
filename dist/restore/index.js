@@ -114267,15 +114267,6 @@ var __importStar = (this && this.__importStar) || function (mod) {
     __setModuleDefault(result, mod);
     return result;
 };
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 const cache = __importStar(__nccwpck_require__(7799));
 const utils = __importStar(__nccwpck_require__(1518));
@@ -114285,77 +114276,75 @@ const path = __importStar(__nccwpck_require__(1017));
 const state_1 = __nccwpck_require__(9738);
 const utils_1 = __nccwpck_require__(1314);
 process.on("uncaughtException", (e) => core.info("warning: " + e.message));
-function restoreCache() {
-    return __awaiter(this, void 0, void 0, function* () {
+async function restoreCache() {
+    try {
+        await (0, utils_1.validateSubscription)();
+        const bucket = core.getInput("bucket", { required: true });
+        const key = core.getInput("key", { required: true });
+        const useFallback = (0, utils_1.getInputAsBoolean)("use-fallback");
+        const paths = (0, utils_1.getInputAsArray)("path");
+        const restoreKeys = (0, utils_1.getInputAsArray)("restore-keys");
+        const lookupOnly = (0, utils_1.getInputAsBoolean)("lookup-only");
         try {
-            yield (0, utils_1.validateSubscription)();
-            const bucket = core.getInput("bucket", { required: true });
-            const key = core.getInput("key", { required: true });
-            const useFallback = (0, utils_1.getInputAsBoolean)("use-fallback");
-            const paths = (0, utils_1.getInputAsArray)("path");
-            const restoreKeys = (0, utils_1.getInputAsArray)("restore-keys");
-            const lookupOnly = (0, utils_1.getInputAsBoolean)("lookup-only");
-            try {
-                // Inputs are re-evaluted before the post action, so we want to store the original values
-                core.saveState(state_1.State.PrimaryKey, key);
-                core.saveState(state_1.State.AccessKey, (0, utils_1.getInput)("accessKey", "AWS_ACCESS_KEY_ID"));
-                core.saveState(state_1.State.SecretKey, (0, utils_1.getInput)("secretKey", "AWS_SECRET_ACCESS_KEY"));
-                core.saveState(state_1.State.SessionToken, (0, utils_1.getInput)("sessionToken", "AWS_SESSION_TOKEN"));
-                core.saveState(state_1.State.Region, (0, utils_1.getInput)("region", "AWS_REGION"));
-                const mc = (0, utils_1.newMinio)();
-                const compressionMethod = yield utils.getCompressionMethod();
-                const cacheFileName = utils.getCacheFileName(compressionMethod);
-                const archivePath = path.join(yield utils.createTempDirectory(), cacheFileName);
-                const { item: obj, matchingKey } = yield (0, utils_1.findObject)(mc, bucket, key, restoreKeys, compressionMethod);
-                core.debug("found cache object");
-                (0, utils_1.saveMatchedKey)(matchingKey);
-                const cacheHit = matchingKey === key;
-                (0, utils_1.setCacheHitOutput)(cacheHit);
-                (0, utils_1.setCacheSizeOutput)(obj.size);
-                if (lookupOnly) {
-                    if (cacheHit && obj.size > 0) {
-                        core.info(`Cache Hit. NOT Downloading cache from s3 because lookup-only is set. bucket: ${bucket}, object: ${obj.name}`);
-                    }
-                    else {
-                        core.info(`Cache Miss or cache size is 0. NOT Downloading cache from s3 because lookup-only is set. bucket: ${bucket}, object: ${obj.name}`);
-                    }
+            // Inputs are re-evaluted before the post action, so we want to store the original values
+            core.saveState(state_1.State.PrimaryKey, key);
+            core.saveState(state_1.State.AccessKey, (0, utils_1.getInput)("accessKey", "AWS_ACCESS_KEY_ID"));
+            core.saveState(state_1.State.SecretKey, (0, utils_1.getInput)("secretKey", "AWS_SECRET_ACCESS_KEY"));
+            core.saveState(state_1.State.SessionToken, (0, utils_1.getInput)("sessionToken", "AWS_SESSION_TOKEN"));
+            core.saveState(state_1.State.Region, (0, utils_1.getInput)("region", "AWS_REGION"));
+            const mc = (0, utils_1.newMinio)();
+            const compressionMethod = await utils.getCompressionMethod();
+            const cacheFileName = utils.getCacheFileName(compressionMethod);
+            const archivePath = path.join(await utils.createTempDirectory(), cacheFileName);
+            const { item: obj, matchingKey } = await (0, utils_1.findObject)(mc, bucket, key, restoreKeys, compressionMethod);
+            core.debug("found cache object");
+            (0, utils_1.saveMatchedKey)(matchingKey);
+            const cacheHit = matchingKey === key;
+            (0, utils_1.setCacheHitOutput)(cacheHit);
+            (0, utils_1.setCacheSizeOutput)(obj.size);
+            if (lookupOnly) {
+                if (cacheHit && obj.size > 0) {
+                    core.info(`Cache Hit. NOT Downloading cache from s3 because lookup-only is set. bucket: ${bucket}, object: ${obj.name}`);
                 }
                 else {
-                    core.info(`Downloading cache from s3 to ${archivePath}. bucket: ${bucket}, object: ${obj.name}`);
-                    yield mc.fGetObject(bucket, obj.name, archivePath);
-                    if (core.isDebug()) {
-                        yield (0, tar_1.listTar)(archivePath, compressionMethod);
-                    }
-                    core.info(`Cache Size: ${(0, utils_1.formatSize)(obj.size)} (${obj.size} bytes)`);
-                    yield (0, tar_1.extractTar)(archivePath, compressionMethod);
-                    core.info("Cache restored from s3 successfully");
+                    core.info(`Cache Miss or cache size is 0. NOT Downloading cache from s3 because lookup-only is set. bucket: ${bucket}, object: ${obj.name}`);
                 }
             }
-            catch (e) {
-                core.info("Restore s3 cache failed: " + e.message);
-                (0, utils_1.setCacheHitOutput)(false);
-                if (useFallback) {
-                    if ((0, utils_1.isGhes)()) {
-                        core.warning("Cache fallback is not supported on Github Enterpise.");
-                    }
-                    else {
-                        core.info("Restore cache using fallback cache");
-                        const fallbackMatchingKey = yield cache.restoreCache(paths, key, restoreKeys);
-                        if (fallbackMatchingKey) {
-                            (0, utils_1.setCacheHitOutput)(fallbackMatchingKey === key);
-                            core.info("Fallback cache restored successfully");
-                        }
-                        else {
-                            core.info("Fallback cache restore failed");
-                        }
-                    }
+            else {
+                core.info(`Downloading cache from s3 to ${archivePath}. bucket: ${bucket}, object: ${obj.name}`);
+                await mc.fGetObject(bucket, obj.name, archivePath);
+                if (core.isDebug()) {
+                    await (0, tar_1.listTar)(archivePath, compressionMethod);
                 }
+                core.info(`Cache Size: ${(0, utils_1.formatSize)(obj.size)} (${obj.size} bytes)`);
+                await (0, tar_1.extractTar)(archivePath, compressionMethod);
+                core.info("Cache restored from s3 successfully");
             }
         }
         catch (e) {
-            core.setFailed(e.message);
+            core.info("Restore s3 cache failed: " + e.message);
+            (0, utils_1.setCacheHitOutput)(false);
+            if (useFallback) {
+                if ((0, utils_1.isGhes)()) {
+                    core.warning("Cache fallback is not supported on Github Enterpise.");
+                }
+                else {
+                    core.info("Restore cache using fallback cache");
+                    const fallbackMatchingKey = await cache.restoreCache(paths, key, restoreKeys);
+                    if (fallbackMatchingKey) {
+                        (0, utils_1.setCacheHitOutput)(fallbackMatchingKey === key);
+                        core.info("Fallback cache restored successfully");
+                    }
+                    else {
+                        core.info("Fallback cache restore failed");
+                    }
+                }
+            }
         }
-    });
+    }
+    catch (e) {
+        core.setFailed(e.message);
+    }
 }
 restoreCache();
 
@@ -114410,15 +114399,6 @@ var __importStar = (this && this.__importStar) || function (mod) {
     __setModuleDefault(result, mod);
     return result;
 };
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -114432,6 +114412,7 @@ const path_1 = __importDefault(__nccwpck_require__(1017));
 const tar_1 = __nccwpck_require__(6490);
 const cache = __importStar(__nccwpck_require__(7799));
 const axios_1 = __importStar(__nccwpck_require__(8757));
+const fs = __importStar(__nccwpck_require__(7147));
 function isGhes() {
     const ghUrl = new URL(process.env["GITHUB_SERVER_URL"] || "https://github.com");
     return ghUrl.hostname.toUpperCase() !== "GITHUB.COM";
@@ -114453,10 +114434,10 @@ function newMinio({ accessKey, secretKey, sessionToken, region, } = {}) {
         endPoint: core.getInput("endpoint"),
         port: getInputAsInt("port"),
         useSSL: !getInputAsBoolean("insecure"),
-        accessKey: accessKey !== null && accessKey !== void 0 ? accessKey : getInput("accessKey", "AWS_ACCESS_KEY_ID"),
-        secretKey: secretKey !== null && secretKey !== void 0 ? secretKey : getInput("secretKey", "AWS_SECRET_ACCESS_KEY"),
-        sessionToken: sessionToken !== null && sessionToken !== void 0 ? sessionToken : getInput("sessionToken", "AWS_SESSION_TOKEN"),
-        region: region !== null && region !== void 0 ? region : getInput("region", "AWS_REGION"),
+        accessKey: accessKey ?? getInput("accessKey", "AWS_ACCESS_KEY_ID"),
+        secretKey: secretKey ?? getInput("secretKey", "AWS_SECRET_ACCESS_KEY"),
+        sessionToken: sessionToken ?? getInput("sessionToken", "AWS_SESSION_TOKEN"),
+        region: region ?? getInput("region", "AWS_REGION"),
     });
 }
 exports.newMinio = newMinio;
@@ -114498,34 +114479,32 @@ function setCacheSizeOutput(cacheSize) {
     core.setOutput("cache-size", cacheSize.toString());
 }
 exports.setCacheSizeOutput = setCacheSizeOutput;
-function findObject(mc, bucket, key, restoreKeys, compressionMethod) {
-    return __awaiter(this, void 0, void 0, function* () {
-        core.debug("Key: " + JSON.stringify(key));
-        core.debug("Restore keys: " + JSON.stringify(restoreKeys));
-        core.debug(`Finding exact macth for: ${key}`);
-        const exactMatch = yield listObjects(mc, bucket, key);
-        core.debug(`Found ${JSON.stringify(exactMatch, null, 2)}`);
-        if (exactMatch.length) {
-            const result = { item: exactMatch[0], matchingKey: key };
-            core.debug(`Using ${JSON.stringify(result)}`);
-            return result;
+async function findObject(mc, bucket, key, restoreKeys, compressionMethod) {
+    core.debug("Key: " + JSON.stringify(key));
+    core.debug("Restore keys: " + JSON.stringify(restoreKeys));
+    core.debug(`Finding exact macth for: ${key}`);
+    const exactMatch = await listObjects(mc, bucket, key);
+    core.debug(`Found ${JSON.stringify(exactMatch, null, 2)}`);
+    if (exactMatch.length) {
+        const result = { item: exactMatch[0], matchingKey: key };
+        core.debug(`Using ${JSON.stringify(result)}`);
+        return result;
+    }
+    for (const restoreKey of restoreKeys) {
+        const fn = utils.getCacheFileName(compressionMethod);
+        core.debug(`Finding object with prefix: ${restoreKey}`);
+        let objects = await listObjects(mc, bucket, restoreKey);
+        objects = objects.filter((o) => o.name.includes(fn));
+        core.debug(`Found ${JSON.stringify(objects, null, 2)}`);
+        if (objects.length < 1) {
+            continue;
         }
-        for (const restoreKey of restoreKeys) {
-            const fn = utils.getCacheFileName(compressionMethod);
-            core.debug(`Finding object with prefix: ${restoreKey}`);
-            let objects = yield listObjects(mc, bucket, restoreKey);
-            objects = objects.filter((o) => o.name.includes(fn));
-            core.debug(`Found ${JSON.stringify(objects, null, 2)}`);
-            if (objects.length < 1) {
-                continue;
-            }
-            const sorted = objects.sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
-            const result = { item: sorted[0], matchingKey: restoreKey };
-            core.debug(`Using latest ${JSON.stringify(result)}`);
-            return result;
-        }
-        throw new Error("Cache item not found");
-    });
+        const sorted = objects.sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
+        const result = { item: sorted[0], matchingKey: restoreKey };
+        core.debug(`Using latest ${JSON.stringify(result)}`);
+        return result;
+    }
+    throw new Error("Cache item not found");
 }
 exports.findObject = findObject;
 function listObjects(mc, bucket, prefix) {
@@ -114568,84 +114547,99 @@ function isExactKeyMatch() {
     return result;
 }
 exports.isExactKeyMatch = isExactKeyMatch;
-function validateSubscription() {
-    var _a;
-    return __awaiter(this, void 0, void 0, function* () {
-        const API_URL = `https://agent.api.stepsecurity.io/v1/github/${process.env.GITHUB_REPOSITORY}/actions/subscription`;
-        try {
-            yield axios_1.default.get(API_URL, { timeout: 3000 });
+async function validateSubscription() {
+    const eventPath = process.env.GITHUB_EVENT_PATH;
+    let repoPrivate;
+    if (eventPath && fs.existsSync(eventPath)) {
+        const eventData = JSON.parse(fs.readFileSync(eventPath, 'utf8'));
+        repoPrivate = eventData?.repository?.private;
+    }
+    const upstream = 'tespkg/actions-cache';
+    const action = process.env.GITHUB_ACTION_REPOSITORY;
+    const docsUrl = 'https://docs.stepsecurity.io/actions/stepsecurity-maintained-actions';
+    core.info('');
+    core.info('\u001b[1;36mStepSecurity Maintained Action\u001b[0m');
+    core.info(`Secure drop-in replacement for ${upstream}`);
+    if (repoPrivate === false)
+        core.info('\u001b[32m\u2713 Free for public repositories\u001b[0m');
+    core.info(`\u001b[36mLearn more:\u001b[0m ${docsUrl}`);
+    core.info('');
+    if (repoPrivate === false)
+        return;
+    const serverUrl = process.env.GITHUB_SERVER_URL || 'https://github.com';
+    const body = { action: action || '' };
+    if (serverUrl !== 'https://github.com')
+        body.ghes_server = serverUrl;
+    try {
+        await axios_1.default.post(`https://agent.api.stepsecurity.io/v1/github/${process.env.GITHUB_REPOSITORY}/actions/maintained-actions-subscription`, body, { timeout: 3000 });
+    }
+    catch (error) {
+        if ((0, axios_1.isAxiosError)(error) && error.response?.status === 403) {
+            core.error(`\u001b[1;31mThis action requires a StepSecurity subscription for private repositories.\u001b[0m`);
+            core.error(`\u001b[31mLearn how to enable a subscription: ${docsUrl}\u001b[0m`);
+            process.exit(1);
         }
-        catch (error) {
-            if ((0, axios_1.isAxiosError)(error) && ((_a = error.response) === null || _a === void 0 ? void 0 : _a.status) === 403) {
-                core.error('Subscription is not valid. Reach out to support@stepsecurity.io');
-                process.exit(1);
-            }
-            else {
-                core.info('Timeout or API not reachable. Continuing to next step.');
-            }
-        }
-    });
+        core.info('Timeout or API not reachable. Continuing to next step.');
+    }
 }
 exports.validateSubscription = validateSubscription;
-function saveCache(standalone) {
-    return __awaiter(this, void 0, void 0, function* () {
+async function saveCache(standalone) {
+    try {
+        await validateSubscription();
+        if (!standalone && isExactKeyMatch()) {
+            core.info("Cache was exact key match, not saving");
+            return;
+        }
+        const bucket = core.getInput("bucket", { required: true });
+        // Inputs are re-evaluted before the post action, so we want the original key
+        const key = standalone ? core.getInput("key", { required: true }) : core.getState(state_1.State.PrimaryKey);
+        const useFallback = getInputAsBoolean("use-fallback");
+        const paths = getInputAsArray("path");
         try {
-            yield validateSubscription();
-            if (!standalone && isExactKeyMatch()) {
-                core.info("Cache was exact key match, not saving");
-                return;
+            const mc = newMinio({
+                // Inputs are re-evaluted before the post action, so we want the original keys & tokens
+                accessKey: standalone ? getInput("accessKey", "AWS_ACCESS_KEY_ID") : core.getState(state_1.State.AccessKey),
+                secretKey: standalone ? getInput("secretKey", "AWS_SECRET_ACCESS_KEY") : core.getState(state_1.State.SecretKey),
+                sessionToken: standalone ? getInput("sessionToken", "AWS_SESSION_TOKEN") : core.getState(state_1.State.SessionToken),
+                region: standalone ? getInput("region", "AWS_REGION") : core.getState(state_1.State.Region),
+            });
+            const compressionMethod = await utils.getCompressionMethod();
+            const cachePaths = await utils.resolvePaths(paths);
+            core.debug("Cache Paths:");
+            core.debug(`${JSON.stringify(cachePaths)}`);
+            const archiveFolder = await utils.createTempDirectory();
+            const cacheFileName = utils.getCacheFileName(compressionMethod);
+            const archivePath = path_1.default.join(archiveFolder, cacheFileName);
+            core.debug(`Archive Path: ${archivePath}`);
+            await (0, tar_1.createTar)(archiveFolder, cachePaths, compressionMethod);
+            if (core.isDebug()) {
+                await (0, tar_1.listTar)(archivePath, compressionMethod);
             }
-            const bucket = core.getInput("bucket", { required: true });
-            // Inputs are re-evaluted before the post action, so we want the original key
-            const key = standalone ? core.getInput("key", { required: true }) : core.getState(state_1.State.PrimaryKey);
-            const useFallback = getInputAsBoolean("use-fallback");
-            const paths = getInputAsArray("path");
-            try {
-                const mc = newMinio({
-                    // Inputs are re-evaluted before the post action, so we want the original keys & tokens
-                    accessKey: standalone ? getInput("accessKey", "AWS_ACCESS_KEY_ID") : core.getState(state_1.State.AccessKey),
-                    secretKey: standalone ? getInput("secretKey", "AWS_SECRET_ACCESS_KEY") : core.getState(state_1.State.SecretKey),
-                    sessionToken: standalone ? getInput("sessionToken", "AWS_SESSION_TOKEN") : core.getState(state_1.State.SessionToken),
-                    region: standalone ? getInput("region", "AWS_REGION") : core.getState(state_1.State.Region),
-                });
-                const compressionMethod = yield utils.getCompressionMethod();
-                const cachePaths = yield utils.resolvePaths(paths);
-                core.debug("Cache Paths:");
-                core.debug(`${JSON.stringify(cachePaths)}`);
-                const archiveFolder = yield utils.createTempDirectory();
-                const cacheFileName = utils.getCacheFileName(compressionMethod);
-                const archivePath = path_1.default.join(archiveFolder, cacheFileName);
-                core.debug(`Archive Path: ${archivePath}`);
-                yield (0, tar_1.createTar)(archiveFolder, cachePaths, compressionMethod);
-                if (core.isDebug()) {
-                    yield (0, tar_1.listTar)(archivePath, compressionMethod);
-                }
-                const object = path_1.default.join(key, cacheFileName);
-                core.info(`Uploading tar to s3. Bucket: ${bucket}, Object: ${object}`);
-                yield mc.fPutObject(bucket, object, archivePath, {});
-                core.info("Cache saved to s3 successfully");
-            }
-            catch (e) {
-                if (useFallback) {
-                    if (isGhes()) {
-                        core.warning("Cache fallback is not supported on Github Enterpise.");
-                    }
-                    else {
-                        core.info("Saving cache using fallback");
-                        yield cache.saveCache(paths, key);
-                        core.info("Save cache using fallback successfully");
-                    }
-                }
-                else {
-                    core.debug("skipped fallback cache");
-                    core.warning("Save s3 cache failed: " + e.message);
-                }
-            }
+            const object = path_1.default.join(key, cacheFileName);
+            core.info(`Uploading tar to s3. Bucket: ${bucket}, Object: ${object}`);
+            await mc.fPutObject(bucket, object, archivePath, {});
+            core.info("Cache saved to s3 successfully");
         }
         catch (e) {
-            core.info("warning: " + e.message);
+            if (useFallback) {
+                if (isGhes()) {
+                    core.warning("Cache fallback is not supported on Github Enterpise.");
+                }
+                else {
+                    core.info("Saving cache using fallback");
+                    await cache.saveCache(paths, key);
+                    core.info("Save cache using fallback successfully");
+                }
+            }
+            else {
+                core.debug("skipped fallback cache");
+                core.warning("Save s3 cache failed: " + e.message);
+            }
         }
-    });
+    }
+    catch (e) {
+        core.info("warning: " + e.message);
+    }
 }
 exports.saveCache = saveCache;
 
