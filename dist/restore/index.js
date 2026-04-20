@@ -114323,6 +114323,7 @@ async function restoreCache() {
             const cacheHit = matchingKey === key;
             (0, utils_1.setCacheHitOutput)(cacheHit);
             (0, utils_1.setCacheSizeOutput)(obj.size);
+            (0, utils_1.setCacheMatchedKeyOutput)(matchingKey);
             if (lookupOnly) {
                 if (cacheHit && obj.size > 0) {
                     core.info(`Cache Hit. NOT Downloading cache from s3 because lookup-only is set. bucket: ${bucket}, object: ${obj.name}`);
@@ -114345,6 +114346,7 @@ async function restoreCache() {
         catch (e) {
             core.info("Restore s3 cache failed: " + e.message);
             (0, utils_1.setCacheHitOutput)(false);
+            (0, utils_1.setCacheMatchedKeyOutput)("");
             if (useFallback) {
                 if ((0, utils_1.isGhes)()) {
                     core.warning("Cache fallback is not supported on Github Enterpise.");
@@ -114354,6 +114356,7 @@ async function restoreCache() {
                     const fallbackMatchingKey = await cache.restoreCache(paths, key, restoreKeys);
                     if (fallbackMatchingKey) {
                         (0, utils_1.setCacheHitOutput)(fallbackMatchingKey === key);
+                        (0, utils_1.setCacheMatchedKeyOutput)(fallbackMatchingKey);
                         core.info("Fallback cache restored successfully");
                     }
                     else {
@@ -114424,7 +114427,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.saveCache = exports.validateSubscription = exports.isExactKeyMatch = exports.saveMatchedKey = exports.listObjects = exports.findObject = exports.setCacheSizeOutput = exports.setCacheHitOutput = exports.formatSize = exports.getInputAsInt = exports.getInputAsArray = exports.getInputAsBoolean = exports.newMinio = exports.getInput = exports.isGhes = void 0;
+exports.saveCache = exports.validateSubscription = exports.isExactKeyMatch = exports.saveMatchedKey = exports.listObjects = exports.findObject = exports.setCacheMatchedKeyOutput = exports.setCacheSizeOutput = exports.setCacheHitOutput = exports.formatSize = exports.getInputAsInt = exports.getInputAsArray = exports.getInputAsBoolean = exports.newMinio = exports.getInput = exports.isGhes = void 0;
 const utils = __importStar(__nccwpck_require__(1518));
 const core = __importStar(__nccwpck_require__(2186));
 const minio = __importStar(__nccwpck_require__(4613));
@@ -114500,17 +114503,25 @@ function setCacheSizeOutput(cacheSize) {
     core.setOutput("cache-size", cacheSize.toString());
 }
 exports.setCacheSizeOutput = setCacheSizeOutput;
+function setCacheMatchedKeyOutput(cacheMatchedKey) {
+    core.setOutput("cache-matched-key", cacheMatchedKey);
+}
+exports.setCacheMatchedKeyOutput = setCacheMatchedKeyOutput;
 async function findObject(mc, bucket, key, restoreKeys, compressionMethod) {
     core.debug("Key: " + JSON.stringify(key));
     core.debug("Restore keys: " + JSON.stringify(restoreKeys));
-    core.debug(`Finding exact macth for: ${key}`);
-    const exactMatch = await listObjects(mc, bucket, key);
-    core.debug(`Found ${JSON.stringify(exactMatch, null, 2)}`);
-    if (exactMatch.length) {
-        const result = { item: exactMatch[0], matchingKey: key };
-        core.debug(`Using ${JSON.stringify(result)}`);
-        return result;
+    core.debug(`Finding exact match for: ${key}`);
+    const keyMatches = await listObjects(mc, bucket, key);
+    core.debug(`Found ${JSON.stringify(keyMatches, null, 2)}`);
+    if (keyMatches.length > 0) {
+        const exactMatch = keyMatches.find((obj) => obj.name?.startsWith(key + path_1.default.sep));
+        if (exactMatch) {
+            const result = { item: exactMatch, matchingKey: key };
+            core.debug(`Found an exact match; using ${JSON.stringify(result)}`);
+            return result;
+        }
     }
+    core.debug(`Didn't find an exact match`);
     for (const restoreKey of restoreKeys) {
         const fn = utils.getCacheFileName(compressionMethod);
         core.debug(`Finding object with prefix: ${restoreKey}`);
