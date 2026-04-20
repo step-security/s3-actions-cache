@@ -88,7 +88,7 @@ To restore from the cache only:
             node_modules
 ```
 
-To check if cache hits and size is not zero:
+To check if cache hits and size is not zero without downloading:
 
 ```yaml
       - name: Check cache
