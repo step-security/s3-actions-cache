@@ -114,6 +114,14 @@ To check if cache hits and size is not zero without downloading:
 ```
 
 
+## Outputs
+
+| Output | Description |
+|---|---|
+| `cache-hit` | A boolean value (`true`/`false`). `true` when an exact match is found for the primary `key`. |
+| `cache-size` | Size of the cache object found, measured in bytes. |
+| `cache-matched-key` | The key of the cache entry that was restored. On exact match this equals the input `key`. On a `restore-keys` prefix match this is the matched restore key. Empty string if no cache was found. |
+
 ## Restore keys
 
 `restore-keys` works similar to how github's `@actions/cache@v5` works: It search each item in `restore-keys`
