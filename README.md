@@ -31,6 +31,7 @@ jobs:
           sessionToken: ${{ secrets.SESSION_TOKEN }} # optional
           bucket: ${{ secrets.BUCKET }}   # required
           use-fallback: true # optional, use github actions cache fallback, default true
+          retry: true # optional, enable retry on failure s3 operations, default false
 
           # actions/cache compatible properties: https://github.com/actions/cache
           key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
