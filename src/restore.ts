@@ -16,6 +16,7 @@ import {
   setCacheSizeOutput,
   saveMatchedKey,
   getInput,
+  withRetry,
   validateSubscription,
 } from "./utils";
 
@@ -84,7 +85,7 @@ async function restoreCache() {
         core.info(
           `Downloading cache from s3 to ${archivePath}. bucket: ${bucket}, object: ${obj.name}`,
         );
-        await mc.fGetObject(bucket, obj.name, archivePath);
+        await withRetry("fGetObject", () => mc.fGetObject(bucket, obj.name!, archivePath));
 
         if (core.isDebug()) {
           await listTar(archivePath, compressionMethod);

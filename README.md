@@ -130,11 +130,11 @@ as prefix in object names and use the latest one
 To restore from the cache using a `restore-key` prefix if the `key` restore fails:
 
 ```yaml
-      - uses: tespkg/actions-cache/restore@v1
+      - uses: step-security/actions-cache/restore@v1
         with:
-          accessKey: "Q3AM3UQ867SPQQA43P2F" # required
-          secretKey: "zuf+tfteSlswRu7BJ86wekitnifILbZam1KYY3TG" # required
-          bucket: actions-cache # required
+          accessKey:  ${{ secrets.ACCESS_KEY }} # required
+          secretKey: ${{ secrets.SECRET_KEY }} # required
+          bucket: ${{ secrets.BUCKET }} # required
           # actions/cache compatible properties: https://github.com/actions/cache
           key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
           restore-keys: |
