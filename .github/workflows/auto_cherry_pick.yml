@@ -19,6 +19,13 @@ on:
         description: "Specify Node.js version (e.g., '18', '20', 'lts/*')"
         required: false
         default: "24"
+      mode:
+        description: "Run mode: cherry-pick or verify"
+        required: false
+        default: "cherry-pick"
+
+  pull_request:
+    types: [labeled, opened, synchronize]
 
 permissions:
   contents: write
@@ -28,6 +35,7 @@ permissions:
 
 jobs:
   cherry-pick:
+    if: github.event_name == 'workflow_dispatch' || contains(fromJson(toJson(github.event.pull_request.labels)).*.name, 'review-required')
     uses: step-security/reusable-workflows/.github/workflows/auto_cherry_pick.yaml@v1
     with:
       original-owner: "tespkg"
@@ -36,3 +44,5 @@ jobs:
       package_manager: "yarn"
       script: ${{ inputs.script || 'yarn build' }}
       node_version: "${{ inputs.node_version || '24' }}"
+      mode: ${{ github.event_name == 'pull_request' && 'verify' || inputs.mode }}
+
