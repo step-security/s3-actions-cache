@@ -22,6 +22,9 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Build
+        shell: bash
+        run: npm install -g yarn && yarn install --pure-lockfile && yarn build
       - name: Generate files in working directory
         shell: bash
         run: src/create-cache-files.sh ${{ runner.os }} test-cache
@@ -56,7 +59,11 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Build
+        shell: bash
+        run: npm install -g yarn && yarn install --pure-lockfile && yarn build
       - name: Restore cache
+        id: restore
         uses: ./
         with:
           endpoint: ${{ secrets.ENDPOINT }}
@@ -68,6 +75,17 @@ jobs:
           path: |
             test-cache
             ~/test-cache
+      - name: Verify cache-matched-key output
+        if: steps.restore.outputs.cache-hit == 'true'
+        shell: bash
+        env:
+          CACHE_MATCHED_KEY: ${{ steps.restore.outputs.cache-matched-key }}
+          EXPECTED_KEY: test-${{ runner.os }}-${{ github.run_id }}
+        run: |
+          if [ "$CACHE_MATCHED_KEY" != "$EXPECTED_KEY" ]; then
+            echo "cache-matched-key mismatch: got '$CACHE_MATCHED_KEY', expected '$EXPECTED_KEY'"
+            exit 1
+          fi
       - name: Verify cache files in working directory
         shell: bash
         run: src/verify-cache-files.sh ${{ runner.os }} test-cache
@@ -90,7 +108,11 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Build
+        shell: bash
+        run: npm install -g yarn && yarn install --pure-lockfile && yarn build
       - name: Restore cache
+        id: restore-keys
         uses: ./
         with:
           endpoint: ${{ secrets.ENDPOINT }}
@@ -103,6 +125,80 @@ jobs:
             test-cache
             ~/test-cache
           restore-keys: test-${{ runner.os }}-
+      - name: Verify cache-matched-key output
+        if: steps.restore-keys.outputs.cache-matched-key != ''
+        shell: bash
+        env:
+          CACHE_MATCHED_KEY: ${{ steps.restore-keys.outputs.cache-matched-key }}
+        run: |
+          echo "cache-matched-key is set to: $CACHE_MATCHED_KEY"
+      - name: Verify cache files in working directory
+        shell: bash
+        run: src/verify-cache-files.sh ${{ runner.os }} test-cache
+      - name: Verify cache files outside working directory
+        shell: bash
+        run: src/verify-cache-files.sh ${{ runner.os }} ~/test-cache
+
+  test-save-retry:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macOS-latest]
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Build
+        shell: bash
+        run: npm install -g yarn && yarn install --pure-lockfile && yarn build
+      - name: Generate files in working directory
+        shell: bash
+        run: src/create-cache-files.sh ${{ runner.os }} test-cache
+      - name: Generate files outside working directory
+        shell: bash
+        run: src/create-cache-files.sh ${{ runner.os }} ~/test-cache
+      - name: Save cache with retry enabled
+        uses: ./
+        with:
+          endpoint: ${{ secrets.ENDPOINT }}
+          accessKey: ${{ secrets.ACCESS_KEY }}
+          secretKey: ${{ secrets.SECRET_KEY }}
+          bucket: ${{ secrets.BUCKET }}
+          use-fallback: false
+          key: test-retry-${{ runner.os }}-${{ github.run_id }}
+          path: |
+            test-cache
+            ~/test-cache
+          retry: true
+          retry-count: 3
+
+  test-restore-retry:
+    needs: test-save-retry
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macOS-latest]
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Build
+        shell: bash
+        run: npm install -g yarn && yarn install --pure-lockfile && yarn build
+      - name: Restore cache with retry enabled
+        uses: ./
+        with:
+          endpoint: ${{ secrets.ENDPOINT }}
+          accessKey: ${{ secrets.ACCESS_KEY }}
+          secretKey: ${{ secrets.SECRET_KEY }}
+          bucket: ${{ secrets.BUCKET }}
+          use-fallback: false
+          key: test-retry-${{ runner.os }}-${{ github.run_id }}
+          path: |
+            test-cache
+            ~/test-cache
+          retry: true
+          retry-count: 3
       - name: Verify cache files in working directory
         shell: bash
         run: src/verify-cache-files.sh ${{ runner.os }} test-cache
@@ -124,6 +220,9 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Build
+        shell: bash
+        run: npm install -g yarn && yarn install --pure-lockfile && yarn build
       - name: Generate files in working directory
         shell: bash
         run: src/create-cache-files.sh ${{ runner.os }} test-cache
@@ -158,7 +257,11 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Build
+        shell: bash
+        run: npm install -g yarn && yarn install --pure-lockfile && yarn build
       - name: Restore cache
+        id: restore-only
         uses: ./restore/
         with:
           endpoint: ${{ secrets.ENDPOINT }}
@@ -170,6 +273,17 @@ jobs:
           path: |
             test-cache
             ~/test-cache
+      - name: Verify cache-matched-key output
+        if: steps.restore-only.outputs.cache-hit == 'true'
+        shell: bash
+        env:
+          CACHE_MATCHED_KEY: ${{ steps.restore-only.outputs.cache-matched-key }}
+          EXPECTED_KEY: test-save-only-${{ runner.os }}-${{ github.run_id }}
+        run: |
+          if [ "$CACHE_MATCHED_KEY" != "$EXPECTED_KEY" ]; then
+            echo "cache-matched-key mismatch: got '$CACHE_MATCHED_KEY', expected '$EXPECTED_KEY'"
+            exit 1
+          fi
       - name: Verify cache files in working directory
         shell: bash
         run: src/verify-cache-files.sh ${{ runner.os }} test-cache

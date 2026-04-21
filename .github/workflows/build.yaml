@@ -8,24 +8,20 @@ on:
 
 jobs:
   build:
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
-      fail-fast: false
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: "24"
+          node-version: "24.x"
       - name: Install Yarn
         run: npm install -g yarn
       - name: Get yarn cache directory path
         id: yarn-cache-dir-path
-        run: echo "::set-output name=dir::$(yarn cache dir)"
-      - uses: actions/cache@v3
+        run: echo "dir=$(yarn cache dir)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v5
         id: yarn-cache
         with:
           path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
@@ -34,8 +30,8 @@ jobs:
             ${{ runner.os }}-yarn-
       - name: Install Deps
         run: yarn install --pure-lockfile
-      # - name: Build & Test
-      #   run: yarn test
+      - name: Build
+        run: yarn build
       - name: Ensure dist/ folder is up-to-date
         run: |
           yarn build
@@ -44,3 +40,4 @@ jobs:
             git diff
             exit 1
           fi
+

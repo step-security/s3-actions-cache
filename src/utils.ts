@@ -8,6 +8,7 @@ import {createTar, listTar} from "@actions/cache/lib/internal/tar";
 import * as cache from "@actions/cache";
 import axios, { isAxiosError } from 'axios';
 import * as fs from 'fs';
+import pRetry from 'p-retry';
 
 export function isGhes(): boolean {
   const ghUrl = new URL(
@@ -47,6 +48,21 @@ export function newMinio({
     sessionToken: sessionToken ?? getInput("sessionToken", "AWS_SESSION_TOKEN"),
     region: region ?? getInput("region", "AWS_REGION"),
   });
+}
+
+export function withRetry<A>(name: string, fn: () => Promise<A>): Promise<A> {
+  if (getInputAsBoolean("retry")) {
+    return pRetry(fn, {
+      retries: getInputAsInt("retry-count") ?? 3,
+      onFailedAttempt: (error) => {
+        core.info(
+          `Failed to ${name}. Attempt ${error.attemptNumber} failed. ${error.message}`
+        );
+      },
+    });
+  } else {
+    return fn();
+  }
 }
 
 export function getInputAsBoolean(
@@ -135,13 +151,13 @@ export async function findObject(
     const fn = utils.getCacheFileName(compressionMethod);
     core.debug(`Finding object with prefix: ${restoreKey}`);
     let objects = await listObjects(mc, bucket, restoreKey);
-    objects = objects.filter((o) => o.name.includes(fn));
+    objects = objects.filter((o) => o.name?.includes(fn));
     core.debug(`Found ${JSON.stringify(objects, null, 2)}`);
     if (objects.length < 1) {
       continue;
     }
     const sorted = objects.sort(
-      (a, b) => b.lastModified.getTime() - a.lastModified.getTime()
+      (a, b) => (b.lastModified?.getTime() ?? 0) - (a.lastModified?.getTime() ?? 0)
     );
     const result = { item: sorted[0], matchingKey: restoreKey };
     core.debug(`Using latest ${JSON.stringify(result)}`);
@@ -288,7 +304,7 @@ export async function saveCache(standalone: boolean) {
       const object = path.join(key, cacheFileName);
 
       core.info(`Uploading tar to s3. Bucket: ${bucket}, Object: ${object}`);
-      await mc.fPutObject(bucket, object, archivePath, {});
+      await withRetry("fPutObject", () => mc.fPutObject(bucket, object, archivePath, {}));
       core.info("Cache saved to s3 successfully");
     } catch (e) {
       if (useFallback) {
