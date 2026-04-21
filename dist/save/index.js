@@ -101394,6 +101394,289 @@ if (process.env.READABLE_STREAM === 'disable' && Stream) {
 
 /***/ }),
 
+/***/ 4347:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+module.exports = __nccwpck_require__(6244);
+
+/***/ }),
+
+/***/ 6244:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+var RetryOperation = __nccwpck_require__(5369);
+
+exports.operation = function(options) {
+  var timeouts = exports.timeouts(options);
+  return new RetryOperation(timeouts, {
+      forever: options && (options.forever || options.retries === Infinity),
+      unref: options && options.unref,
+      maxRetryTime: options && options.maxRetryTime
+  });
+};
+
+exports.timeouts = function(options) {
+  if (options instanceof Array) {
+    return [].concat(options);
+  }
+
+  var opts = {
+    retries: 10,
+    factor: 2,
+    minTimeout: 1 * 1000,
+    maxTimeout: Infinity,
+    randomize: false
+  };
+  for (var key in options) {
+    opts[key] = options[key];
+  }
+
+  if (opts.minTimeout > opts.maxTimeout) {
+    throw new Error('minTimeout is greater than maxTimeout');
+  }
+
+  var timeouts = [];
+  for (var i = 0; i < opts.retries; i++) {
+    timeouts.push(this.createTimeout(i, opts));
+  }
+
+  if (options && options.forever && !timeouts.length) {
+    timeouts.push(this.createTimeout(i, opts));
+  }
+
+  // sort the array numerically ascending
+  timeouts.sort(function(a,b) {
+    return a - b;
+  });
+
+  return timeouts;
+};
+
+exports.createTimeout = function(attempt, opts) {
+  var random = (opts.randomize)
+    ? (Math.random() + 1)
+    : 1;
+
+  var timeout = Math.round(random * Math.max(opts.minTimeout, 1) * Math.pow(opts.factor, attempt));
+  timeout = Math.min(timeout, opts.maxTimeout);
+
+  return timeout;
+};
+
+exports.wrap = function(obj, options, methods) {
+  if (options instanceof Array) {
+    methods = options;
+    options = null;
+  }
+
+  if (!methods) {
+    methods = [];
+    for (var key in obj) {
+      if (typeof obj[key] === 'function') {
+        methods.push(key);
+      }
+    }
+  }
+
+  for (var i = 0; i < methods.length; i++) {
+    var method   = methods[i];
+    var original = obj[method];
+
+    obj[method] = function retryWrapper(original) {
+      var op       = exports.operation(options);
+      var args     = Array.prototype.slice.call(arguments, 1);
+      var callback = args.pop();
+
+      args.push(function(err) {
+        if (op.retry(err)) {
+          return;
+        }
+        if (err) {
+          arguments[0] = op.mainError();
+        }
+        callback.apply(this, arguments);
+      });
+
+      op.attempt(function() {
+        original.apply(obj, args);
+      });
+    }.bind(obj, original);
+    obj[method].options = options;
+  }
+};
+
+
+/***/ }),
+
+/***/ 5369:
+/***/ ((module) => {
+
+function RetryOperation(timeouts, options) {
+  // Compatibility for the old (timeouts, retryForever) signature
+  if (typeof options === 'boolean') {
+    options = { forever: options };
+  }
+
+  this._originalTimeouts = JSON.parse(JSON.stringify(timeouts));
+  this._timeouts = timeouts;
+  this._options = options || {};
+  this._maxRetryTime = options && options.maxRetryTime || Infinity;
+  this._fn = null;
+  this._errors = [];
+  this._attempts = 1;
+  this._operationTimeout = null;
+  this._operationTimeoutCb = null;
+  this._timeout = null;
+  this._operationStart = null;
+  this._timer = null;
+
+  if (this._options.forever) {
+    this._cachedTimeouts = this._timeouts.slice(0);
+  }
+}
+module.exports = RetryOperation;
+
+RetryOperation.prototype.reset = function() {
+  this._attempts = 1;
+  this._timeouts = this._originalTimeouts.slice(0);
+}
+
+RetryOperation.prototype.stop = function() {
+  if (this._timeout) {
+    clearTimeout(this._timeout);
+  }
+  if (this._timer) {
+    clearTimeout(this._timer);
+  }
+
+  this._timeouts       = [];
+  this._cachedTimeouts = null;
+};
+
+RetryOperation.prototype.retry = function(err) {
+  if (this._timeout) {
+    clearTimeout(this._timeout);
+  }
+
+  if (!err) {
+    return false;
+  }
+  var currentTime = new Date().getTime();
+  if (err && currentTime - this._operationStart >= this._maxRetryTime) {
+    this._errors.push(err);
+    this._errors.unshift(new Error('RetryOperation timeout occurred'));
+    return false;
+  }
+
+  this._errors.push(err);
+
+  var timeout = this._timeouts.shift();
+  if (timeout === undefined) {
+    if (this._cachedTimeouts) {
+      // retry forever, only keep last error
+      this._errors.splice(0, this._errors.length - 1);
+      timeout = this._cachedTimeouts.slice(-1);
+    } else {
+      return false;
+    }
+  }
+
+  var self = this;
+  this._timer = setTimeout(function() {
+    self._attempts++;
+
+    if (self._operationTimeoutCb) {
+      self._timeout = setTimeout(function() {
+        self._operationTimeoutCb(self._attempts);
+      }, self._operationTimeout);
+
+      if (self._options.unref) {
+          self._timeout.unref();
+      }
+    }
+
+    self._fn(self._attempts);
+  }, timeout);
+
+  if (this._options.unref) {
+      this._timer.unref();
+  }
+
+  return true;
+};
+
+RetryOperation.prototype.attempt = function(fn, timeoutOps) {
+  this._fn = fn;
+
+  if (timeoutOps) {
+    if (timeoutOps.timeout) {
+      this._operationTimeout = timeoutOps.timeout;
+    }
+    if (timeoutOps.cb) {
+      this._operationTimeoutCb = timeoutOps.cb;
+    }
+  }
+
+  var self = this;
+  if (this._operationTimeoutCb) {
+    this._timeout = setTimeout(function() {
+      self._operationTimeoutCb();
+    }, self._operationTimeout);
+  }
+
+  this._operationStart = new Date().getTime();
+
+  this._fn(this._attempts);
+};
+
+RetryOperation.prototype.try = function(fn) {
+  console.log('Using RetryOperation.try() is deprecated');
+  this.attempt(fn);
+};
+
+RetryOperation.prototype.start = function(fn) {
+  console.log('Using RetryOperation.start() is deprecated');
+  this.attempt(fn);
+};
+
+RetryOperation.prototype.start = RetryOperation.prototype.try;
+
+RetryOperation.prototype.errors = function() {
+  return this._errors;
+};
+
+RetryOperation.prototype.attempts = function() {
+  return this._attempts;
+};
+
+RetryOperation.prototype.mainError = function() {
+  if (this._errors.length === 0) {
+    return null;
+  }
+
+  var counts = {};
+  var mainError = null;
+  var mainErrorCount = 0;
+
+  for (var i = 0; i < this._errors.length; i++) {
+    var error = this._errors[i];
+    var message = error.message;
+    var count = (counts[message] || 0) + 1;
+
+    counts[message] = count;
+
+    if (count >= mainErrorCount) {
+      mainError = error;
+      mainErrorCount = count;
+    }
+  }
+
+  return mainError;
+};
+
+
+/***/ }),
+
 /***/ 1867:
 /***/ ((module, exports, __nccwpck_require__) => {
 
@@ -114349,7 +114632,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.saveCache = exports.validateSubscription = exports.isExactKeyMatch = exports.saveMatchedKey = exports.listObjects = exports.findObject = exports.setCacheSizeOutput = exports.setCacheHitOutput = exports.formatSize = exports.getInputAsInt = exports.getInputAsArray = exports.getInputAsBoolean = exports.newMinio = exports.getInput = exports.isGhes = void 0;
+exports.saveCache = exports.validateSubscription = exports.isExactKeyMatch = exports.saveMatchedKey = exports.listObjects = exports.findObject = exports.setCacheMatchedKeyOutput = exports.setCacheSizeOutput = exports.setCacheHitOutput = exports.formatSize = exports.getInputAsInt = exports.getInputAsArray = exports.getInputAsBoolean = exports.withRetry = exports.newMinio = exports.getInput = exports.isGhes = void 0;
 const utils = __importStar(__nccwpck_require__(1518));
 const core = __importStar(__nccwpck_require__(2186));
 const minio = __importStar(__nccwpck_require__(8308));
@@ -114359,6 +114642,7 @@ const tar_1 = __nccwpck_require__(6490);
 const cache = __importStar(__nccwpck_require__(7799));
 const axios_1 = __importStar(__nccwpck_require__(8757));
 const fs = __importStar(__nccwpck_require__(7147));
+const p_retry_1 = __importDefault(__nccwpck_require__(5728));
 function isGhes() {
     const ghUrl = new URL(process.env["GITHUB_SERVER_URL"] || "https://github.com");
     return ghUrl.hostname.toUpperCase() !== "GITHUB.COM";
@@ -114387,6 +114671,20 @@ function newMinio({ accessKey, secretKey, sessionToken, region, } = {}) {
     });
 }
 exports.newMinio = newMinio;
+function withRetry(name, fn) {
+    if (getInputAsBoolean("retry")) {
+        return (0, p_retry_1.default)(fn, {
+            retries: getInputAsInt("retry-count") ?? 3,
+            onFailedAttempt: (error) => {
+                core.info(`Failed to ${name}. Attempt ${error.attemptNumber} failed. ${error.message}`);
+            },
+        });
+    }
+    else {
+        return fn();
+    }
+}
+exports.withRetry = withRetry;
 function getInputAsBoolean(name, options) {
     return core.getInput(name, options) === "true";
 }
@@ -114425,27 +114723,35 @@ function setCacheSizeOutput(cacheSize) {
     core.setOutput("cache-size", cacheSize.toString());
 }
 exports.setCacheSizeOutput = setCacheSizeOutput;
+function setCacheMatchedKeyOutput(cacheMatchedKey) {
+    core.setOutput("cache-matched-key", cacheMatchedKey);
+}
+exports.setCacheMatchedKeyOutput = setCacheMatchedKeyOutput;
 async function findObject(mc, bucket, key, restoreKeys, compressionMethod) {
     core.debug("Key: " + JSON.stringify(key));
     core.debug("Restore keys: " + JSON.stringify(restoreKeys));
-    core.debug(`Finding exact macth for: ${key}`);
-    const exactMatch = await listObjects(mc, bucket, key);
-    core.debug(`Found ${JSON.stringify(exactMatch, null, 2)}`);
-    if (exactMatch.length) {
-        const result = { item: exactMatch[0], matchingKey: key };
-        core.debug(`Using ${JSON.stringify(result)}`);
-        return result;
+    core.debug(`Finding exact match for: ${key}`);
+    const keyMatches = await listObjects(mc, bucket, key);
+    core.debug(`Found ${JSON.stringify(keyMatches, null, 2)}`);
+    if (keyMatches.length > 0) {
+        const exactMatch = keyMatches.find((obj) => obj.name?.startsWith(key + path_1.default.sep));
+        if (exactMatch) {
+            const result = { item: exactMatch, matchingKey: key };
+            core.debug(`Found an exact match; using ${JSON.stringify(result)}`);
+            return result;
+        }
     }
+    core.debug(`Didn't find an exact match`);
     for (const restoreKey of restoreKeys) {
         const fn = utils.getCacheFileName(compressionMethod);
         core.debug(`Finding object with prefix: ${restoreKey}`);
         let objects = await listObjects(mc, bucket, restoreKey);
-        objects = objects.filter((o) => o.name.includes(fn));
+        objects = objects.filter((o) => o.name?.includes(fn));
         core.debug(`Found ${JSON.stringify(objects, null, 2)}`);
         if (objects.length < 1) {
             continue;
         }
-        const sorted = objects.sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
+        const sorted = objects.sort((a, b) => (b.lastModified?.getTime() ?? 0) - (a.lastModified?.getTime() ?? 0));
         const result = { item: sorted[0], matchingKey: restoreKey };
         core.debug(`Using latest ${JSON.stringify(result)}`);
         return result;
@@ -114563,7 +114869,7 @@ async function saveCache(standalone) {
             }
             const object = path_1.default.join(key, cacheFileName);
             core.info(`Uploading tar to s3. Bucket: ${bucket}, Object: ${object}`);
-            await mc.fPutObject(bucket, object, archivePath, {});
+            await withRetry("fPutObject", () => mc.fPutObject(bucket, object, archivePath, {}));
             core.info("Cache saved to s3 successfully");
         }
         catch (e) {
@@ -119587,6 +119893,167 @@ module.exports = axios;
 
 /***/ }),
 
+/***/ 5728:
+/***/ ((__unused_webpack___webpack_module__, __webpack_exports__, __nccwpck_require__) => {
+
+"use strict";
+// ESM COMPAT FLAG
+__nccwpck_require__.r(__webpack_exports__);
+
+// EXPORTS
+__nccwpck_require__.d(__webpack_exports__, {
+  "AbortError": () => (/* binding */ AbortError),
+  "default": () => (/* binding */ pRetry)
+});
+
+// EXTERNAL MODULE: ./node_modules/retry/index.js
+var retry = __nccwpck_require__(4347);
+;// CONCATENATED MODULE: ./node_modules/is-network-error/index.js
+const objectToString = Object.prototype.toString;
+
+const isError = value => objectToString.call(value) === '[object Error]';
+
+const errorMessages = new Set([
+	'network error', // Chrome
+	'NetworkError when attempting to fetch resource.', // Firefox
+	'The Internet connection appears to be offline.', // Safari 16
+	'Network request failed', // `cross-fetch`
+	'fetch failed', // Undici (Node.js)
+	'terminated', // Undici (Node.js)
+	' A network error occurred.', // Bun (WebKit)
+	'Network connection lost', // Cloudflare Workers (fetch)
+]);
+
+function isNetworkError(error) {
+	const isValid = error
+		&& isError(error)
+		&& error.name === 'TypeError'
+		&& typeof error.message === 'string';
+
+	if (!isValid) {
+		return false;
+	}
+
+	const {message, stack} = error;
+
+	// Safari 17+ has generic message but no stack for network errors
+	if (message === 'Load failed') {
+		return stack === undefined
+			// Sentry adds its own stack trace to the fetch error, so also check for that
+			|| '__sentry_captured__' in error;
+	}
+
+	// Deno network errors start with specific text
+	if (message.startsWith('error sending request for url')) {
+		return true;
+	}
+
+	// Chrome: exact "Failed to fetch" or with hostname: "Failed to fetch (example.com)"
+	if (message === 'Failed to fetch' || (message.startsWith('Failed to fetch (') && message.endsWith(')'))) {
+		return true;
+	}
+
+	// Standard network error messages
+	return errorMessages.has(message);
+}
+
+;// CONCATENATED MODULE: ./node_modules/p-retry/index.js
+
+
+
+class AbortError extends Error {
+	constructor(message) {
+		super();
+
+		if (message instanceof Error) {
+			this.originalError = message;
+			({message} = message);
+		} else {
+			this.originalError = new Error(message);
+			this.originalError.stack = this.stack;
+		}
+
+		this.name = 'AbortError';
+		this.message = message;
+	}
+}
+
+const decorateErrorWithCounts = (error, attemptNumber, options) => {
+	// Minus 1 from attemptNumber because the first attempt does not count as a retry
+	const retriesLeft = options.retries - (attemptNumber - 1);
+
+	error.attemptNumber = attemptNumber;
+	error.retriesLeft = retriesLeft;
+	return error;
+};
+
+async function pRetry(input, options) {
+	return new Promise((resolve, reject) => {
+		options = {...options};
+		options.onFailedAttempt ??= () => {};
+		options.shouldRetry ??= () => true;
+		options.retries ??= 10;
+
+		const operation = retry.operation(options);
+
+		const abortHandler = () => {
+			operation.stop();
+			reject(options.signal?.reason);
+		};
+
+		if (options.signal && !options.signal.aborted) {
+			options.signal.addEventListener('abort', abortHandler, {once: true});
+		}
+
+		const cleanUp = () => {
+			options.signal?.removeEventListener('abort', abortHandler);
+			operation.stop();
+		};
+
+		operation.attempt(async attemptNumber => {
+			try {
+				const result = await input(attemptNumber);
+				cleanUp();
+				resolve(result);
+			} catch (error) {
+				try {
+					if (!(error instanceof Error)) {
+						throw new TypeError(`Non-error was thrown: "${error}". You should only throw errors.`);
+					}
+
+					if (error instanceof AbortError) {
+						throw error.originalError;
+					}
+
+					if (error instanceof TypeError && !isNetworkError(error)) {
+						throw error;
+					}
+
+					decorateErrorWithCounts(error, attemptNumber, options);
+
+					if (!(await options.shouldRetry(error))) {
+						operation.stop();
+						reject(error);
+					}
+
+					await options.onFailedAttempt(error);
+
+					if (!operation.retry(error)) {
+						throw operation.mainError();
+					}
+				} catch (finalError) {
+					decorateErrorWithCounts(finalError, attemptNumber, options);
+					cleanUp();
+					reject(finalError);
+				}
+			}
+		});
+	});
+}
+
+
+/***/ }),
+
 /***/ 9167:
 /***/ ((module) => {
 
@@ -119663,6 +120130,34 @@ module.exports = JSON.parse('[[[0,44],"disallowed_STD3_valid"],[[45,46],"valid"]
 /******/ 	}
 /******/ 	
 /************************************************************************/
+/******/ 	/* webpack/runtime/define property getters */
+/******/ 	(() => {
+/******/ 		// define getter functions for harmony exports
+/******/ 		__nccwpck_require__.d = (exports, definition) => {
+/******/ 			for(var key in definition) {
+/******/ 				if(__nccwpck_require__.o(definition, key) && !__nccwpck_require__.o(exports, key)) {
+/******/ 					Object.defineProperty(exports, key, { enumerable: true, get: definition[key] });
+/******/ 				}
+/******/ 			}
+/******/ 		};
+/******/ 	})();
+/******/ 	
+/******/ 	/* webpack/runtime/hasOwnProperty shorthand */
+/******/ 	(() => {
+/******/ 		__nccwpck_require__.o = (obj, prop) => (Object.prototype.hasOwnProperty.call(obj, prop))
+/******/ 	})();
+/******/ 	
+/******/ 	/* webpack/runtime/make namespace object */
+/******/ 	(() => {
+/******/ 		// define __esModule on exports
+/******/ 		__nccwpck_require__.r = (exports) => {
+/******/ 			if(typeof Symbol !== 'undefined' && Symbol.toStringTag) {
+/******/ 				Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
+/******/ 			}
+/******/ 			Object.defineProperty(exports, '__esModule', { value: true });
+/******/ 		};
+/******/ 	})();
+/******/ 	
 /******/ 	/* webpack/runtime/node module decorator */
 /******/ 	(() => {
 /******/ 		__nccwpck_require__.nmd = (module) => {

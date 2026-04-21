@@ -1,6 +1,6 @@
 name: "s3 cache"
 author: step-security
-description: "S3 actions cache with actions/cache@v2 passthrough"
+description: "S3 actions cache with actions/cache@v5 passthrough"
 inputs:
   endpoint:
     description: "s3 / minio endpoint, see: https://docs.min.io/docs/javascript-client-api-reference.html"
@@ -44,6 +44,14 @@ inputs:
     description: "Check if a restore is successfull but dont download/extract cache."
     required: false
     default: "false"
+  retry:
+    description: "Enable retry on failure for S3 operations"
+    required: false
+    default: "false"
+  retry-count:
+    description: "Number of times to retry the minio operation in case of failure"
+    required: false
+    default: "3"
   # zip-option:
   #   description: zip options
   #   required: false
@@ -57,6 +65,8 @@ outputs:
     description: "A boolean value to indicate an exact match was found for the primary key"
   cache-size:
     description: "A integer value denoting the size of the cache object found (measured in bytes)"
+  cache-matched-key:
+    description: "The key of the cache object found, if any"
 runs:
   using: node24
   main: "dist/restore/index.js"

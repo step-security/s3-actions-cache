@@ -4,7 +4,7 @@
 
 This action enables caching dependencies to s3 compatible storage, e.g. minio, AWS S3
 
-It also has github [actions/cache@v2](https://github.com/actions/cache) fallback if s3 save & restore fails
+It also has github [actions/cache@v5](https://github.com/actions/cache) fallback if s3 save & restore fails
 
 ## Usage
 
@@ -31,6 +31,7 @@ jobs:
           sessionToken: ${{ secrets.SESSION_TOKEN }} # optional
           bucket: ${{ secrets.BUCKET }}   # required
           use-fallback: true # optional, use github actions cache fallback, default true
+          retry: true # optional, enable retry on failure s3 operations, default false
 
           # actions/cache compatible properties: https://github.com/actions/cache
           key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
@@ -88,7 +89,7 @@ To restore from the cache only:
             node_modules
 ```
 
-To check if cache hits and size is not zero:
+To check if cache hits and size is not zero without downloading:
 
 ```yaml
       - name: Check cache
@@ -113,10 +114,39 @@ To check if cache hits and size is not zero:
 ```
 
 
+## Outputs
+
+| Output | Description |
+|---|---|
+| `cache-hit` | A boolean value (`true`/`false`). `true` when an exact match is found for the primary `key`. |
+| `cache-size` | Size of the cache object found, measured in bytes. |
+| `cache-matched-key` | The key of the cache entry that was restored. On exact match this equals the input `key`. On a `restore-keys` prefix match this is the matched restore key. Empty string if no cache was found. |
+
 ## Restore keys
 
-`restore-keys` works similar to how github's `@actions/cache@v2` works: It search each item in `restore-keys`
+`restore-keys` works similar to how github's `@actions/cache@v5` works: It search each item in `restore-keys`
 as prefix in object names and use the latest one
+
+To restore from the cache using a `restore-key` prefix if the `key` restore fails:
+
+```yaml
+      - uses: step-security/actions-cache/restore@v1
+        with:
+          accessKey:  ${{ secrets.ACCESS_KEY }} # required
+          secretKey: ${{ secrets.SECRET_KEY }} # required
+          bucket: ${{ secrets.BUCKET }} # required
+          # actions/cache compatible properties: https://github.com/actions/cache
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
+            ${{ runner.os }}-
+          path: |
+            node_modules
+```
+
+If a match is found using one of the `restore-keys` options, then `cache-hit` will be FALSE but the
+`cache-matched-key` output will be set to the key that matched. See the
+[actions/cache](https://github.com/actions/cache/blob/main/restore/README.md#outputs) notes.
 
 ## Amazon S3 permissions
 
