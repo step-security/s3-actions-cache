@@ -4,8 +4,11 @@ module.exports = {
   testEnvironment: "node",
   testMatch: ["**/*.test.ts"],
   transform: {
-    "^.+\\.ts$": "ts-jest",
+    "^.+\\.[tj]s$": ["ts-jest", { tsconfig: { allowJs: true }, diagnostics: false }],
   },
+  transformIgnorePatterns: [
+    "/node_modules/(?!(p-retry|is-network-error)/)",
+  ],
   verbose: true,
 };
 

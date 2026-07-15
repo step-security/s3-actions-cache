@@ -17,10 +17,10 @@ inputs:
     required: false
   accessKey:
     description: s3 / minio accessKey
-    required: true
+    required: false
   secretKey:
     description: s3 / minio secretKey
-    required: true
+    required: false
   sessionToken:
     description: s3 session token - required when using role
     required: false
@@ -42,6 +42,10 @@ inputs:
     default: "true"
   lookup-only:
     description: "Check if a restore is successfull but dont download/extract cache."
+    required: false
+    default: "false"
+  restore-only:
+    description: "Restore a cache but don't attempt to save it"
     required: false
     default: "false"
   retry:
