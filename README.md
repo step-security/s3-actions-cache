@@ -26,8 +26,8 @@ jobs:
         with:
           endpoint: ${{ secrets.ENDPOINT }} # optional, default s3.amazonaws.com
           insecure: false # optional, use http instead of https. default false
-          accessKey: ${{ secrets.ACCESS_KEY }}  # required
-          secretKey: ${{ secrets.SECRET_KEY }} # required
+          accessKey: ${{ secrets.ACCESS_KEY }}  # optional
+          secretKey: ${{ secrets.SECRET_KEY }} # optional
           sessionToken: ${{ secrets.SESSION_TOKEN }} # optional
           bucket: ${{ secrets.BUCKET }}   # required
           use-fallback: true # optional, use github actions cache fallback, default true
@@ -66,8 +66,8 @@ To write to the cache only:
 ```yaml
       - uses: step-security/s3-actions-cache/save@v1
         with:
-          accessKey: ${{ secrets.ACCESS_KEY }} # required
-          secretKey: ${{ secrets.SECRET_KEY }} # required
+          accessKey: ${{ secrets.ACCESS_KEY }} # optional
+          secretKey: ${{ secrets.SECRET_KEY }} # optional
           bucket: ${{ secrets.BUCKET }} # required
           # actions/cache compatible properties: https://github.com/actions/cache
           key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
@@ -80,8 +80,8 @@ To restore from the cache only:
 ```yaml
       - uses: step-security/s3-actions-cache/restore@v1
         with:
-          accessKey: ${{ secrets.ACCESS_KEY }} # required
-          secretKey: ${{ secrets.SECRET_KEY }} # required
+          accessKey: ${{ secrets.ACCESS_KEY }} # optional
+          secretKey: ${{ secrets.SECRET_KEY }} # optional
           bucket: ${{ secrets.BUCKET }} # required
           # actions/cache compatible properties: https://github.com/actions/cache
           key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
@@ -111,8 +111,8 @@ To check if cache hits and size is not zero without downloading:
         id: cache
         uses: step-security/actions-cache/check@v1
         with:
-          accessKey:  ${{ secrets.ACCESS_KEY }} # required
-          secretKey: ${{ secrets.SECRET_KEY }} # required
+          accessKey:  ${{ secrets.ACCESS_KEY }} # optional
+          secretKey: ${{ secrets.SECRET_KEY }} # optional
           bucket: ${{ secrets.BUCKET }} # required
           lookup-only: true
           key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
@@ -147,8 +147,8 @@ To restore from the cache using a `restore-key` prefix if the `key` restore fail
 ```yaml
       - uses: step-security/actions-cache/restore@v1
         with:
-          accessKey:  ${{ secrets.ACCESS_KEY }} # required
-          secretKey: ${{ secrets.SECRET_KEY }} # required
+          accessKey:  ${{ secrets.ACCESS_KEY }} # optional
+          secretKey: ${{ secrets.SECRET_KEY }} # optional
           bucket: ${{ secrets.BUCKET }} # required
           # actions/cache compatible properties: https://github.com/actions/cache
           key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
