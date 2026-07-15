@@ -92,11 +92,11 @@ To restore from the cache only:
 To restore from the cache only (dynamically):
 
 ```yaml
-      - uses: tespkg/actions-cache@v1
+      - uses: step-security/s3-actions-cache@v1
         with:
-          accessKey: "Q3AM3UQ867SPQQA43P2F" # required
-          secretKey: "zuf+tfteSlswRu7BJ86wekitnifILbZam1KYY3TG" # required
-          bucket: actions-cache # required
+          accessKey: ${{ secrets.ACCESS_KEY }} # required
+          secretKey: ${{ secrets.SECRET_KEY }} # required
+          bucket: ${{ secrets.BUCKET }} # required
           restore-only: true
           # actions/cache compatible properties: https://github.com/actions/cache
           key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
